@@ -1,0 +1,23 @@
+# Python temporary files and folders
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.so
+.env
+.venv
+env/
+venv/
+ENV/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Model checkpoints
+*.pt
+
+# Documentation and plots
+*.pdf
+
+data/
+outputs/
