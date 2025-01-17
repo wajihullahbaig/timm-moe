@@ -52,7 +52,7 @@ class EnhancedGate(nn.Module):
     """Enhanced gating network with attention and regularization"""
     def __init__(self, in_dim, num_experts, temperature=0.1):
         super().__init__()
-        self.temperature = temperature
+        self.temperature = nn.Parameter(torch.ones(1)*temperature)
         
         # Spatial attention
         self.spatial_gate = nn.Sequential(
