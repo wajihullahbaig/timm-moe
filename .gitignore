@@ -15,9 +15,11 @@ htmlcov/
 
 # Model checkpoints
 *.pt
+*.pth
 
 # Documentation and plots
 *.pdf
 
 data/
 outputs/
+plots/
