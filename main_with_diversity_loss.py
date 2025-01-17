@@ -263,9 +263,9 @@ def main():
     
     # Create model
     model = ImprovedMoE(
-        num_experts=5,
+        num_experts=10,
         expert_hidden_dim=128,
-        temp=10.0,
+        temp=2.0,
         diversity_coef=0.15
     ).to(device)
     
