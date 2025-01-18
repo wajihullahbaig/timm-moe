@@ -85,7 +85,7 @@ class EnhancedGate(nn.Module):
         self.expert_gate = nn.Sequential(
             nn.Linear(in_dim * 2, in_dim // 2),
             nn.ReLU(),
-            nn.Dropout(0.2),
+            nn.Dropout(0.3),
             nn.Linear(in_dim // 2, num_experts)
         )
 
@@ -118,7 +118,7 @@ class EnhancedGate(nn.Module):
         
         if self.training and labels is not None:
             # Add small noise during training
-            noise = torch.randn_like(logits) * 0.01
+            noise = torch.randn_like(logits) * 0.1
             logits = logits + noise
             
             # Get soft assignment masks
@@ -171,11 +171,11 @@ class ImprovedMoE(nn.Module):
             nn.ReLU(),
             nn.AdaptiveAvgPool2d(1),
             nn.Flatten(),
-            nn.Dropout(0.3),
+            nn.Dropout(0.4),
             nn.Linear(self.feature_dim, 10)
         )
 
-    def compute_routing_loss(self, expert_weights, labels):
+    def calculate_routing_loss(self, expert_weights, labels):
         """New routing loss based on expert assignments"""
         batch_size = labels.size(0)
         num_experts = len(self.expert_assignments)
@@ -197,6 +197,15 @@ class ImprovedMoE(nn.Module):
                                reduction='batchmean')
         
         return routing_loss
+    
+    def calculate_diversity_loss(self,expert_outputs) :
+        # Expert diversity loss
+        expert_similarities = torch.matmul(
+            expert_outputs.view(expert_outputs.size(0), expert_outputs.size(1), -1),
+            expert_outputs.view(expert_outputs.size(0), expert_outputs.size(1), -1).transpose(1, 2)
+        )
+        diversity_loss = torch.mean(torch.triu(expert_similarities.mean(0), diagonal=1)) 
+        return diversity_loss
 
     def calculate_balance_loss(self, expert_weights, labels, num_classes):
         """Calculate balance loss based on class distribution"""
@@ -242,11 +251,12 @@ class ImprovedMoE(nn.Module):
         output = self.classifier(combined)
         
         if return_losses and self.training:
-            balance_loss = self.calculate_balance_loss(expert_weights, labels, n_classes)
-            routing_loss = self.compute_routing_loss(expert_weights, labels)
-            
+            balance_loss = self.calculate_balance_loss(expert_weights,labels,n_classes)
+            diversity_loss = self.calculate_diversity_loss(expert_weights)
+            routing_loss = self.calculate_routing_loss(expert_weights, labels)
             losses = {
                 'balance_loss': balance_loss,
+                'diversity_loss':diversity_loss,
                 'routing_loss': routing_loss
             }
             return output, losses
@@ -272,7 +282,8 @@ def train_epoch(model, loader, optimizer, scheduler, n_classes, device):
         
         total_loss_batch = (0.5 * task_loss + 
                    0.1 * losses['balance_loss'] + 
-                   0.4 * losses['routing_loss'])
+                   0.3 * losses['diversity_loss'] + 
+                   0.3 * losses['routing_loss'])
         
         total_loss_batch.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
@@ -316,7 +327,7 @@ def evaluate(model, loader, device):
 
 def main():
     set_seed(42)
-    batch_size = 128
+    batch_size = 256
     # Device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'Using device: {device}')
@@ -356,9 +367,9 @@ def main():
     
     # Create model
     model = ImprovedMoE(
-        num_experts=10,
+        num_experts=2,
         expert_hidden_dim=128,
-        temp=4.0,
+        temp=5.0,
     ).to(device)
     
     # Separate learning rates for different components
@@ -372,7 +383,7 @@ def main():
     optimizer = torch.optim.AdamW(params, weight_decay=0.01)
     
     # Calculate exact number of steps
-    total_epochs = 100
+    total_epochs = 200
     total_steps = total_epochs * len(trainloader)  
     
     # OneCycle scheduler with exact steps
@@ -398,8 +409,7 @@ def main():
             test_acc = evaluate(model, testloader, device)
             print(f'Train Loss: {train_loss:.3f} | Train Acc: {train_acc:.3f}%')
             print(f'Test Acc: {test_acc:.3f}%')            
-            visualize_moe_expert_map(model, testloader, device,save_to_disk=True,save_path='./plots_eloss')
-            visualize_moe(model, testloader, device, save_to_disk=True, save_path='./plots_eloss')
+            visualize_moe_expert_map(model, testloader, device,save_to_disk=True,save_path='./plots_dvloss_b256_t5_e2')
             if test_acc > best_acc:
                 best_acc = test_acc
                 torch.save(model.state_dict(), 'best_model.pth')

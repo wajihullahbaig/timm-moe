@@ -174,7 +174,7 @@ def visualize_moe_expert_map(model, dataloader, device, num_batches=1, save_to_d
         if save_path is None:
             save_path = '.'
         os.makedirs(save_path, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         save_file = os.path.join(save_path, f'moe_visualization_{timestamp}.png')
         plt.savefig(save_file, dpi=200, bbox_inches='tight')
         plt.close()
