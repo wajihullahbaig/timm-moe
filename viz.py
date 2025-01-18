@@ -93,18 +93,14 @@ def visualize_moe(model, dataloader, device, num_batches=1, save_to_disk=False, 
 
 
 def visualize_moe_expert_map(model, dataloader, device, num_batches=1, save_to_disk=False, save_path=None):
-    """Enhanced visualization including expert assignments"""
+    """Enhanced visualization of expert specialization patterns"""
     model.eval()
-    expert_usage = []
-    class_expert_usage = {i: [] for i in range(10)}
     cifar_classes = ['plane', 'car', 'bird', 'cat', 'deer', 
                      'dog', 'frog', 'horse', 'ship', 'truck']
     
-    # Add assignment visualization
-    assignments_matrix = torch.zeros(10, len(model.expert_assignments), device=device)
-    for expert_idx, assigned_labels in model.expert_assignments.items():
-        for label in assigned_labels:
-            assignments_matrix[label, expert_idx] = 1
+    # Collect class-expert correlations
+    expert_class_correlation = torch.zeros(len(model.expert_assignments), 10).to(device)
+    total_samples = torch.zeros(10).to(device)
     
     with torch.no_grad():
         for i, (images, labels) in enumerate(dataloader):
@@ -112,57 +108,65 @@ def visualize_moe_expert_map(model, dataloader, device, num_batches=1, save_to_d
                 break
                 
             images, labels = images.to(device), labels.to(device)
-            
-            # Get features and gate weights
             features = model.backbone(images)[0]
-            gate_weights = model.gate(features)
+            expert_weights = model.gate(features)
             
-            # Track usage
-            expert_usage.append(gate_weights.cpu().numpy())
-            
-            # Track per-class usage
+            # Update correlation matrix
             for label in range(10):
                 mask = labels == label
                 if mask.any():
-                    class_expert_usage[label].append(
-                        gate_weights[mask].mean(0).cpu().numpy()
-                    )
+                    expert_class_correlation[:, label] += expert_weights[mask].sum(0)
+                    total_samples[label] += mask.sum()
     
-    # Create figure with 3 subplots
-    fig = plt.figure(figsize=(15, 5))
+    # Normalize by samples per class
+    expert_class_correlation = (expert_class_correlation / total_samples.unsqueeze(0)).cpu().numpy()
     
-    # 1. Overall expert utilization
+    # Create target assignment matrix
+    assignment_matrix = np.zeros((10, len(model.expert_assignments)))
+    for expert_idx, assigned_labels in model.expert_assignments.items():
+        for label in assigned_labels:
+            assignment_matrix[label, expert_idx] = 1
+    
+    # Create figure
+    fig = plt.figure(figsize=(20, 5))
+    
+    # 1. Expert Usage by Class (Actual vs. Assigned)
     plt.subplot(1, 3, 1)
-    avg_usage = np.mean(np.concatenate(expert_usage, axis=0), axis=0)
-    plt.bar(range(len(avg_usage)), avg_usage)
-    plt.title('Overall Expert Utilization')
-    plt.xlabel('Expert ID')
-    plt.ylabel('Average Usage')
-    
-    # 2. Class-Expert Preferences
-    plt.subplot(1, 3, 2)
-    class_expert_map = np.zeros((10, len(avg_usage)))
-    for i in range(10):
-        if class_expert_usage[i]:
-            class_expert_map[i] = np.mean(np.stack(class_expert_usage[i]), axis=0)
-    
-    sns.heatmap(class_expert_map, 
-                xticklabels=range(len(avg_usage)),
+    sns.heatmap(expert_class_correlation.T, 
+                xticklabels=[f'E{i}' for i in range(len(model.expert_assignments))],
                 yticklabels=cifar_classes,
                 cmap='YlOrRd',
-                cbar_label='Usage')
-    plt.title('Class-Expert Preferences')
+                annot=True,
+                fmt='.2f',
+                cbar_kws={'label': 'Usage'})
+    plt.title('Actual Expert Usage by Class')
     plt.xlabel('Expert ID')
+    plt.ylabel('Class')
     
-    # 3. Expert Assignments
-    plt.subplot(1, 3, 3)
-    sns.heatmap(assignments_matrix.cpu().numpy(),
-                xticklabels=range(len(model.expert_assignments)),
+    # 2. Expert Assignments (Target)
+    plt.subplot(1, 3, 2)
+    sns.heatmap(assignment_matrix, 
+                xticklabels=[f'E{i}' for i in range(len(model.expert_assignments))],
                 yticklabels=cifar_classes,
                 cmap='binary',
-                cbar_label='Assigned')
-    plt.title('Expert Assignments')
+                cbar_kws={'label': 'Assigned'})
+    plt.title('Expert Class Assignments (Target)')
     plt.xlabel('Expert ID')
+    plt.ylabel('Class')
+    
+    # 3. Specialization Score (how well experts follow assignments)
+    plt.subplot(1, 3, 3)
+    specialization_score = expert_class_correlation.T * assignment_matrix
+    sns.heatmap(specialization_score,
+                xticklabels=[f'E{i}' for i in range(len(model.expert_assignments))],
+                yticklabels=cifar_classes,
+                cmap='RdYlGn',
+                annot=True,
+                fmt='.2f',
+                cbar_kws={'label': 'Specialization Score'})
+    plt.title('Expert Specialization Score')
+    plt.xlabel('Expert ID')
+    plt.ylabel('Class')
     
     plt.tight_layout()
     
@@ -170,7 +174,6 @@ def visualize_moe_expert_map(model, dataloader, device, num_batches=1, save_to_d
         if save_path is None:
             save_path = '.'
         os.makedirs(save_path, exist_ok=True)
-        
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         save_file = os.path.join(save_path, f'moe_visualization_{timestamp}.png')
         plt.savefig(save_file, dpi=200, bbox_inches='tight')

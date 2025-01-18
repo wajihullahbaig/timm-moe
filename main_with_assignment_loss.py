@@ -14,7 +14,7 @@ from typing import Dict, Optional
 import numpy as np
 import torch
 
-from viz import visualize_moe
+from viz import visualize_moe, visualize_moe_expert_map
 
 def create_expert_assignments(num_classes: int, num_experts: int) -> Dict[int, list]:
     """Create balanced label assignments for experts"""
@@ -270,13 +270,9 @@ def train_epoch(model, loader, optimizer, scheduler, n_classes, device):
         # Main classification loss
         task_loss = F.cross_entropy(outputs, targets)
         
-        # Normalize losses
-        all_losses = [task_loss] + list(losses.values())
-        all_losses = [loss / loss.detach() for loss in all_losses]
-        
-        # Combine with weights
-        weights = [0.4, 0.3, 0.2]  # task, balance, routing
-        total_loss_batch = sum(w * l for w, l in zip(weights, all_losses))
+        total_loss_batch = (0.5 * task_loss + 
+                   0.1 * losses['balance_loss'] + 
+                   0.4 * losses['routing_loss'])
         
         total_loss_batch.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
@@ -402,8 +398,8 @@ def main():
             test_acc = evaluate(model, testloader, device)
             print(f'Train Loss: {train_loss:.3f} | Train Acc: {train_acc:.3f}%')
             print(f'Test Acc: {test_acc:.3f}%')            
-            visualize_moe(model, testloader, device,save_to_disk=True,save_path='./plots_eloss')
-            
+            visualize_moe_expert_map(model, testloader, device,save_to_disk=True,save_path='./plots_eloss')
+            visualize_moe(model, testloader, device, save_to_disk=True, save_path='./plots_eloss')
             if test_acc > best_acc:
                 best_acc = test_acc
                 torch.save(model.state_dict(), 'best_model.pth')
