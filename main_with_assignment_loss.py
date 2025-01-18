@@ -272,9 +272,8 @@ def train_epoch(model, loader, optimizer, scheduler, n_classes, device):
         
         # Normalize losses
         all_losses = [task_loss] + list(losses.values())
-        max_values = [torch.max(loss) for loss in all_losses]
-        all_losses = [loss / max_value for loss, max_value in zip(all_losses, max_values)]
-                
+        all_losses = [loss / loss.detach() for loss in all_losses]
+        
         # Combine with weights
         weights = [0.4, 0.3, 0.2]  # task, balance, routing
         total_loss_batch = sum(w * l for w, l in zip(weights, all_losses))
