@@ -282,8 +282,8 @@ def train_epoch(model, loader, optimizer, scheduler, n_classes, device):
         
         total_loss_batch = (0.5 * task_loss + 
                    0.1 * losses['balance_loss'] + 
-                   0.3 * losses['diversity_loss'] + 
-                   0.3 * losses['routing_loss'])
+                   0.2 * losses['diversity_loss'] + 
+                   0.2 * losses['routing_loss'])
         
         total_loss_batch.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
@@ -327,7 +327,7 @@ def evaluate(model, loader, device):
 
 def main():
     set_seed(42)
-    batch_size = 256
+    batch_size = 128
     # Device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'Using device: {device}')
@@ -367,9 +367,9 @@ def main():
     
     # Create model
     model = ImprovedMoE(
-        num_experts=2,
+        num_experts=10,
         expert_hidden_dim=128,
-        temp=5.0,
+        temp=10.0,
     ).to(device)
     
     # Separate learning rates for different components
@@ -383,7 +383,7 @@ def main():
     optimizer = torch.optim.AdamW(params, weight_decay=0.01)
     
     # Calculate exact number of steps
-    total_epochs = 200
+    total_epochs = 100
     total_steps = total_epochs * len(trainloader)  
     
     # OneCycle scheduler with exact steps
@@ -409,7 +409,7 @@ def main():
             test_acc = evaluate(model, testloader, device)
             print(f'Train Loss: {train_loss:.3f} | Train Acc: {train_acc:.3f}%')
             print(f'Test Acc: {test_acc:.3f}%')            
-            visualize_moe_expert_map(model, testloader, device,save_to_disk=True,save_path='./plots_dvloss_b256_t5_e2')
+            visualize_moe_expert_map(model, testloader, device,save_to_disk=True,save_path='./plots')
             if test_acc > best_acc:
                 best_acc = test_acc
                 torch.save(model.state_dict(), 'best_model.pth')
