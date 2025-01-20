@@ -31,3 +31,9 @@ For each component of the Architecture we use a different learning rate.
         {'params': model.classifier.parameters(), 'lr': 3e-4} # Medium for classifier
     ]
 ```
+
+There three variants
+1- MoE with assignment loss. Most stable. Prevents overfittings. In this model labels are used to predefine the gating mechanism for experts
+2- Typical MOE with diversity loss
+3- Typical MOE without diversity loss
+
