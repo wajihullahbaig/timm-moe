@@ -301,7 +301,7 @@ def main():
     
     # Create model
     model = ImprovedMoE(
-        num_experts=10,
+        num_experts=5,
         expert_hidden_dim=128,
         temp=2.0,
     ).to(device)
@@ -339,7 +339,7 @@ def main():
             model, trainloader, optimizer, scheduler,n_classes, device
         )
         
-        if epoch % 1 == 0:  
+        if epoch % 10 == 0:  
             test_acc = evaluate(model, testloader, device)
             print(f'Train Loss: {train_loss:.3f} | Train Acc: {train_acc:.3f}%')
             print(f'Test Acc: {test_acc:.3f}%')            

@@ -426,7 +426,7 @@ def main():
     model = ImprovedMoE(
         num_experts=5,
         expert_hidden_dim=128,
-        temp=10.0,
+        temp=2.0,
     ).to(device)
     
     # Separate learning rates for different components
@@ -440,7 +440,7 @@ def main():
     optimizer = torch.optim.AdamW(params, weight_decay=0.01)
     
     # Calculate exact number of steps
-    total_epochs = 200
+    total_epochs = 100
     total_steps = total_epochs * len(trainloader)  
     
     # OneCycle scheduler with exact steps

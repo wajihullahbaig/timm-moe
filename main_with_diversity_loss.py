@@ -132,6 +132,61 @@ class ImprovedMoE(nn.Module):
             nn.Linear(self.feature_dim, 10)
         )
     
+    def calculate_diversity_loss(self, expert_outputs, method='cosine_abs', eps=1e-8):
+        """
+        Calculate diversity loss between experts.
+        
+        Args:
+        - expert_outputs: Tensor of shape (batch_size, num_experts, ...)
+        - method: String specifying the method to use. Options are:
+                'cosine', 'squared_diff', 'kl_div', 'cosine_abs', 'cosine_relu', 'cosine_squared'
+        - eps: Small value to avoid division by zero
+        
+        Returns:
+        - diversity_loss: Scalar tensor representing the diversity loss
+        """
+        batch_size = expert_outputs.size(0)
+        num_experts = expert_outputs.size(1)
+        expert_outputs_flat = expert_outputs.view(batch_size, num_experts, -1)
+        
+        if method == 'cosine':
+            similarities = torch.matmul(expert_outputs_flat, expert_outputs_flat.transpose(1, 2))
+            norms = torch.norm(expert_outputs_flat, dim=2, keepdim=True)
+            similarities = similarities / (torch.matmul(norms, norms.transpose(1, 2)) + eps)
+            diversity_loss = torch.mean(torch.triu(similarities.mean(0), diagonal=1))
+        
+        elif method == 'squared_diff':
+            differences = (expert_outputs_flat.unsqueeze(2) - expert_outputs_flat.unsqueeze(1)).pow(2).sum(-1)
+            diversity_loss = -torch.mean(torch.triu(differences.mean(0), diagonal=1))
+        
+        elif method == 'kl_div':
+            expert_probs = F.softmax(expert_outputs_flat, dim=-1)
+            kl_div = F.kl_div(expert_probs.log().unsqueeze(1), expert_probs.unsqueeze(2), reduction='none').sum(-1)
+            diversity_loss = -torch.mean(torch.triu(kl_div.mean(0), diagonal=1))
+        
+        elif method == 'cosine_abs':
+            similarities = torch.matmul(expert_outputs_flat, expert_outputs_flat.transpose(1, 2))
+            norms = torch.norm(expert_outputs_flat, dim=2, keepdim=True)
+            similarities = similarities / (torch.matmul(norms, norms.transpose(1, 2)) + eps)
+            diversity_loss = torch.abs(torch.mean(torch.triu(similarities.mean(0), diagonal=1)))
+        
+        elif method == 'cosine_relu':
+            similarities = torch.matmul(expert_outputs_flat, expert_outputs_flat.transpose(1, 2))
+            norms = torch.norm(expert_outputs_flat, dim=2, keepdim=True)
+            similarities = similarities / (torch.matmul(norms, norms.transpose(1, 2)) + eps)
+            diversity_loss = torch.relu(torch.mean(torch.triu(similarities.mean(0), diagonal=1)))
+        
+        elif method == 'cosine_squared':
+            similarities = torch.matmul(expert_outputs_flat, expert_outputs_flat.transpose(1, 2))
+            norms = torch.norm(expert_outputs_flat, dim=2, keepdim=True)
+            similarities = (similarities / (torch.matmul(norms, norms.transpose(1, 2)) + eps)).pow(2)
+            diversity_loss = torch.mean(torch.triu(similarities.mean(0), diagonal=1))
+        
+        else:
+            raise ValueError(f"Unknown method: {method}")
+        
+        return diversity_loss
+
     def forward(self, x, return_losses=False):
         features = self.backbone(x)[0]
         
@@ -159,12 +214,7 @@ class ImprovedMoE(nn.Module):
             ideal_usage = torch.ones_like(expert_usage) / len(self.experts)
             balance_loss = F.mse_loss(expert_usage, ideal_usage)
             
-            # Expert diversity loss
-            expert_similarities = torch.matmul(
-                expert_outputs.view(expert_outputs.size(0), expert_outputs.size(1), -1),
-                expert_outputs.view(expert_outputs.size(0), expert_outputs.size(1), -1).transpose(1, 2)
-            )
-            diversity_loss = torch.mean(torch.triu(expert_similarities.mean(0), diagonal=1))
+            diversity_loss = self.calculate_diversity_loss(expert_outputs)
             
             # Auxiliary losses dictionary
             losses = {
@@ -263,7 +313,7 @@ def main():
     
     # Create model
     model = ImprovedMoE(
-        num_experts=10,
+        num_experts=5,
         expert_hidden_dim=128,
         temp=2.0,
         diversity_coef=0.15
@@ -301,7 +351,7 @@ def main():
             model, trainloader, optimizer, scheduler, device
         )
         
-        if epoch % 1 == 0:  
+        if epoch % 10 == 0:  
             test_acc = evaluate(model, testloader, device)
             print(f'Train Loss: {train_loss:.3f} | Train Acc: {train_acc:.3f}%')
             print(f'Test Acc: {test_acc:.3f}%')
