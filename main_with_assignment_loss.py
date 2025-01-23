@@ -175,6 +175,11 @@ class ImprovedMoE(nn.Module):
             nn.Linear(self.feature_dim, 10)
         )
 
+    def kl_div_stable(self,p, q):
+        p = torch.clamp(p, min=1e-8)
+        q = torch.clamp(q, min=1e-8)
+        return (p * (torch.log(p) - torch.log(q))).sum(dim=-1).mean()
+
     def calculate_routing_loss(self, expert_weights, labels):
         """New routing loss based on expert assignments"""
         batch_size = labels.size(0)
@@ -193,8 +198,7 @@ class ImprovedMoE(nn.Module):
                                                 keepdim=True) + 1e-8)
         
         # Compute KL divergence between expert weights and target assignments
-        routing_loss = F.kl_div(expert_weights.log(), target_assignments, 
-                               reduction='batchmean')
+        routing_loss = self.kl_div_stable(expert_weights, target_assignments)
         
         return routing_loss
     
