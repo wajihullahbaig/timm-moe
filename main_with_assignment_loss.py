@@ -466,7 +466,7 @@ def main():
             test_acc = evaluate(model, testloader, device)
             print(f'Train Loss: {train_loss:.3f} | Train Acc: {train_acc:.3f}%')
             print(f'Test Acc: {test_acc:.3f}%')            
-            visualize_moe_expert_map(model, testloader, device,save_to_disk=True,save_path='./plots')
+            visualize_moe_expert_map(model, testloader, device,save_to_disk=True,save_path='./plots_aloss')
             if test_acc > best_acc:
                 best_acc = test_acc
                 torch.save(model.state_dict(), 'best_model.pth')
