@@ -94,10 +94,8 @@ class EnhancedGate(nn.Module):
 
 class ImprovedMoE(nn.Module):
     """Improved Mixture of Experts with enhanced components and regularization"""
-    def __init__(self, num_experts=8, expert_hidden_dim=256, temp=0.1, diversity_coef=0.1,specialization_coef=0.1):
+    def __init__(self, num_experts=8, expert_hidden_dim=256, temp=0.1):
         super().__init__()
-        self.diversity_coef = diversity_coef
-        self.specialization_coef = specialization_coef
         # Backbone with larger feature maps
         self.backbone = timm.create_model(
             'efficientnet_b2',
@@ -306,8 +304,6 @@ def main():
         num_experts=10,
         expert_hidden_dim=128,
         temp=2.0,
-        diversity_coef=0.15,
-        specialization_coef = 0.3
     ).to(device)
     
     # Separate learning rates for different components
