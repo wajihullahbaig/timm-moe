@@ -234,7 +234,8 @@ class ImprovedMoE(nn.Module):
         
         # Get expert weights with labels for training
         expert_weights = self.gate(features, labels if self.training else None)
-        
+        if check_invalid_values(expert_weights, features):
+                raise ValueError("Invalid loss values detected")
         # Process through experts
         expert_outputs = []
         for expert in self.experts:
@@ -250,10 +251,12 @@ class ImprovedMoE(nn.Module):
         # Classification
         output = self.classifier(combined)
         
-        if return_losses and self.training:
+        if return_losses and self.training:            
             balance_loss = self.calculate_balance_loss(expert_weights,labels,n_classes)
             diversity_loss = self.calculate_diversity_loss(expert_weights)
             routing_loss = self.calculate_routing_loss(expert_weights, labels)
+            if check_invalid_values(balance_loss, diversity_loss, routing_loss):
+                raise ValueError("Invalid loss values detected")
             losses = {
                 'balance_loss': balance_loss,
                 'diversity_loss':diversity_loss,
@@ -262,6 +265,13 @@ class ImprovedMoE(nn.Module):
             return output, losses
             
         return output
+
+
+def check_invalid_values(*tensors):
+    for tensor in tensors:
+        if torch.isnan(tensor).any() or torch.isinf(tensor).any():
+            return True
+    return False
 
 def train_epoch(model, loader, optimizer, scheduler, n_classes, device):
     model.train()
@@ -367,7 +377,7 @@ def main():
     
     # Create model
     model = ImprovedMoE(
-        num_experts=10,
+        num_experts=5,
         expert_hidden_dim=128,
         temp=10.0,
     ).to(device)
@@ -383,7 +393,7 @@ def main():
     optimizer = torch.optim.AdamW(params, weight_decay=0.01)
     
     # Calculate exact number of steps
-    total_epochs = 100
+    total_epochs = 200
     total_steps = total_epochs * len(trainloader)  
     
     # OneCycle scheduler with exact steps
@@ -405,7 +415,7 @@ def main():
             model, trainloader, optimizer, scheduler,n_classes, device
         )
         
-        if epoch % 1 == 0:  
+        if epoch % 10 == 0:  
             test_acc = evaluate(model, testloader, device)
             print(f'Train Loss: {train_loss:.3f} | Train Acc: {train_acc:.3f}%')
             print(f'Test Acc: {test_acc:.3f}%')            
