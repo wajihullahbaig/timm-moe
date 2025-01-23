@@ -175,10 +175,6 @@ class ImprovedMoE(nn.Module):
             nn.Linear(self.feature_dim, 10)
         )
 
-    def kl_div_stable(self,p, q):
-        p = torch.clamp(p, min=1e-8)
-        q = torch.clamp(q, min=1e-8)
-        return (p * (torch.log(p) - torch.log(q))).sum(dim=-1).mean()
 
     def calculate_routing_loss(self, expert_weights, labels):
         """New routing loss based on expert assignments"""
@@ -195,11 +191,13 @@ class ImprovedMoE(nn.Module):
         
         # Normalize target assignments
         target_assignments = target_assignments / (target_assignments.sum(dim=1, 
-                                                keepdim=True) + 1e-8)
+                                                keepdim=True) + 1e-5)
         
-        # Compute KL divergence between expert weights and target assignments
-        routing_loss = self.kl_div_stable(expert_weights, target_assignments)
-        
+        # Compute Cross entropy. Lets create probabilities of weights and proceed
+        # We do this as expert weights are in the negative range, while targe assignments
+        # are one hot encoded
+        expert_probs = F.softmax(expert_weights, dim=1)
+        routing_loss = F.cross_entropy(expert_probs, target_assignments.argmax(dim=1))
         return routing_loss
     
     def calculate_diversity_loss(self, expert_outputs, method='cosine_abs', eps=1e-8):
