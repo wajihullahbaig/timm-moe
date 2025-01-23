@@ -281,8 +281,11 @@ class ImprovedMoE(nn.Module):
         
         # Get expert weights with labels for training
         expert_weights = self.gate(features, labels if self.training else None)
-        if check_invalid_values(expert_weights, features):
-                raise ValueError("Invalid loss values detected")
+        invalid_tensors = check_invalid_values(expert_weights)
+            
+        if invalid_tensors:
+            raise ValueError(f"Invalid values (NaN or Inf) found in the following tensors: {', '.join(invalid_tensors)}")
+        
         # Process through experts
         expert_outputs = []
         for expert in self.experts:
@@ -302,8 +305,11 @@ class ImprovedMoE(nn.Module):
             balance_loss = self.calculate_balance_loss(expert_weights,labels,n_classes)
             diversity_loss = self.calculate_diversity_loss(expert_weights)
             routing_loss = self.calculate_routing_loss(expert_weights, labels)
-            if check_invalid_values(balance_loss, diversity_loss, routing_loss):
-                raise ValueError("Invalid loss values detected")
+            invalid_tensors = check_invalid_values(balance_loss, diversity_loss, routing_loss)
+            
+            if invalid_tensors:
+                raise ValueError(f"Invalid values (NaN or Inf) found in the following tensors: {', '.join(invalid_tensors)}")
+            
             losses = {
                 'balance_loss': balance_loss,
                 'diversity_loss':diversity_loss,
@@ -315,10 +321,11 @@ class ImprovedMoE(nn.Module):
 
 
 def check_invalid_values(*tensors):
-    for tensor in tensors:
+    invalid_tensors = []
+    for i, tensor in enumerate(tensors):
         if torch.isnan(tensor).any() or torch.isinf(tensor).any():
-            return True
-    return False
+            invalid_tensors.append(f"Tensor {i}")
+    return invalid_tensors
 
 def train_epoch(model, loader, optimizer, scheduler, n_classes, device):
     model.train()
