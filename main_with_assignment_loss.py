@@ -118,7 +118,7 @@ class EnhancedGate(nn.Module):
         
         if self.training and labels is not None:
             # Add small noise during training
-            noise = torch.randn_like(logits) * 0.1
+            noise = torch.randn_like(logits) * 0.01
             logits = logits + noise
             
             # Get soft assignment masks
@@ -433,9 +433,9 @@ def main():
     
     # Create model
     model = ImprovedMoE(
-        num_experts=5,
+        num_experts=10,
         expert_hidden_dim=128,
-        temp=2.0,
+        temp=10.0,
     ).to(device)
     
     # Separate learning rates for different components
