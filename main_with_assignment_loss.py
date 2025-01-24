@@ -118,7 +118,7 @@ class EnhancedGate(nn.Module):
         
         if self.training and labels is not None:
             # Add small noise during training
-            noise = torch.randn_like(logits) * 0.01
+            noise = torch.randn_like(logits) * 0.1
             logits = logits + noise
             
             # Get soft assignment masks
@@ -192,12 +192,12 @@ class ImprovedMoE(nn.Module):
         # Normalize target assignments
         target_assignments = target_assignments / (target_assignments.sum(dim=1, 
                                                 keepdim=True) + 1e-5)
+        # Clamp to ensure numerical stability
+        expert_weights = torch.clamp(expert_weights, min=1e-5)
+        # Compute KL divergence between expert weights and target assignments
+        routing_loss = F.kl_div(expert_weights.log(), target_assignments, 
+                               reduction='batchmean')
         
-        # Compute Cross entropy. Lets create probabilities of weights and proceed
-        # We do this as expert weights are in the negative range, while targe assignments
-        # are one hot encoded
-        expert_probs = F.softmax(expert_weights, dim=1)
-        routing_loss = F.cross_entropy(expert_probs, target_assignments.argmax(dim=1))
         return routing_loss
     
     def calculate_diversity_loss(self, expert_outputs, method='cosine_abs', eps=1e-8):
@@ -449,7 +449,7 @@ def main():
     optimizer = torch.optim.AdamW(params, weight_decay=0.01)
     
     # Calculate exact number of steps
-    total_epochs = 100
+    total_epochs = 200
     total_steps = total_epochs * len(trainloader)  
     
     # OneCycle scheduler with exact steps
