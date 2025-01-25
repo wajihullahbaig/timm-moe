@@ -200,7 +200,7 @@ class ImprovedMoE(nn.Module):
         
         return routing_loss
     
-    def calculate_diversity_loss(self, expert_outputs, method='cosine_abs', eps=1e-8):
+    def calculate_diversity_loss(self, expert_outputs, method='kl_div', eps=1e-8):
         """
         Calculate diversity loss between experts.
         
