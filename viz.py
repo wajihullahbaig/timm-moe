@@ -92,7 +92,7 @@ def visualize_moe(model, dataloader, device, num_batches=1, save_to_disk=False, 
     }
 
 
-def visualize_moe_expert_map(model, dataloader, device, num_batches=1, save_to_disk=False, save_path=None):
+def visualize_moe_expert_map(model, dataloader, device, num_batches=1, save_to_disk=False, save_path=None,training_acc=None,test_acc=None):
     """Enhanced visualization of expert specialization patterns"""
     model.eval()
     cifar_classes = ['plane', 'car', 'bird', 'cat', 'deer', 
@@ -168,7 +168,19 @@ def visualize_moe_expert_map(model, dataloader, device, num_batches=1, save_to_d
     plt.xlabel('Expert ID')
     plt.ylabel('Class')
     
-    plt.tight_layout()
+    if training_acc is not None or test_acc is not None:
+        acc_text = "Accuracies: "
+        if training_acc is not None:
+            acc_text += f"Training: {training_acc:.2f}%"
+        if test_acc is not None:
+            acc_text += f" | Testing: {test_acc:.2f}%" if training_acc is not None else f"Testing: {test_acc:.2f}%"
+        
+        fig.text(0.5, 0.01, acc_text, ha='center', va='center', fontsize=10, fontweight='bold')
+
+        # Adjust the layout to make room for the text
+        plt.tight_layout(rect=[0, 0.03, 1, 1])
+    else:
+        plt.tight_layout()
     
     if save_to_disk:
         if save_path is None:
