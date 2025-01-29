@@ -49,12 +49,19 @@ class EnhancedExpert(nn.Module):
         self.bn1 = nn.BatchNorm2d(hidden_dim)
         self.conv2 = nn.Conv2d(hidden_dim, in_dim, 3, padding=1)
         self.bn2 = nn.BatchNorm2d(in_dim)
+        nn.init.xavier_uniform_(self.conv2.weight)
+        nn.init.zeros_(self.conv2.bias)
         
         # Skip connection if dimensions change
-        self.skip = nn.Sequential(
-            nn.Conv2d(in_dim, in_dim, 1),
-            nn.BatchNorm2d(in_dim)
-        ) if in_dim != hidden_dim else nn.Identity()
+        if in_dim != hidden_dim:
+            self.skip = nn.Sequential(
+                nn.Conv2d(in_dim, in_dim, 1),
+                nn.BatchNorm2d(in_dim)
+            )
+            nn.init.xavier_uniform_(self.skip[0].weight)
+            nn.init.zeros_(self.skip[0].bias)
+        else:
+            self.skip = nn.Identity()
         
     def forward(self, x):
         identity = self.skip(x)
@@ -88,6 +95,12 @@ class EnhancedGate(nn.Module):
             nn.Dropout(0.3),
             nn.Linear(in_dim // 2, num_experts)
         )
+
+        # Initialize expert_gate
+        for layer in self.expert_gate:
+            if isinstance(layer, nn.Linear):
+                nn.init.xavier_uniform_(layer.weight)
+                nn.init.zeros_(layer.bias)
 
     def compute_soft_masks(self, labels):
         """Compute soft assignment masks based on expert assignments"""
@@ -175,6 +188,14 @@ class ImprovedMoE(nn.Module):
             nn.Linear(self.feature_dim, 10)
         )
 
+    # Initialize classifier
+        for layer in self.classifier:
+            if isinstance(layer, nn.Conv2d):
+                nn.init.xavier_uniform_(layer.weight)
+                nn.init.zeros_(layer.bias)
+            elif isinstance(layer, nn.Linear):
+                nn.init.xavier_uniform_(layer.weight)
+                nn.init.zeros_(layer.bias)
 
     def calculate_routing_loss(self, expert_weights, labels):
         """New routing loss based on expert assignments"""
@@ -435,7 +456,7 @@ def main():
     model = ImprovedMoE(
         num_experts=10,
         expert_hidden_dim=128,
-        temp=10.0,
+        temp=10,
     ).to(device)
     
     # Separate learning rates for different components
@@ -465,6 +486,8 @@ def main():
     # Training loop
     best_acc = 0
     n_classes = 10
+    test_acc = 0.0
+    train_acc = 0.0
     for epoch in range(total_epochs):  
         print(f'\nEpoch: {epoch+1}')
         train_loss, train_acc = train_epoch(
@@ -475,11 +498,19 @@ def main():
             test_acc = evaluate(model, testloader, device)
             print(f'Train Loss: {train_loss:.3f} | Train Acc: {train_acc:.3f}%')
             print(f'Test Acc: {test_acc:.3f}%')            
-            visualize_moe_expert_map(model, testloader, device,save_to_disk=True,save_path='./plots_aloss')
+            visualize_moe_expert_map(model, testloader, device,save_to_disk=True,save_path='./plots_aloss',training_acc=train_acc,test_acc=test_acc)
             if test_acc > best_acc:
                 best_acc = test_acc
                 torch.save(model.state_dict(), 'best_model.pth')
-    
+
+    test_acc = evaluate(model, testloader, device)
+    print(f'Train Loss: {train_loss:.3f} | Train Acc: {train_acc:.3f}%')
+    print(f'Test Acc: {test_acc:.3f}%')            
+    visualize_moe_expert_map(model, testloader, device,save_to_disk=True,save_path='./plots_aloss',training_acc=train_acc,test_acc=test_acc)
+    if test_acc > best_acc:
+        best_acc = test_acc
+        torch.save(model.state_dict(), 'best_model.pth')
+        
     print(f'Best Test Acc: {best_acc:.3f}%')
     
 
