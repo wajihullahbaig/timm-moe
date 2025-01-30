@@ -249,8 +249,7 @@ class ImprovedMoE(nn.Module):
             diversity_loss = -torch.mean(torch.triu(differences.mean(0), diagonal=1))
         
         elif method == 'kl_div':
-            expert_probs = F.softmax(expert_outputs_flat, dim=-1)
-            kl_div = F.kl_div(expert_probs.log().unsqueeze(1), expert_probs.unsqueeze(2), reduction='none').sum(-1)
+            kl_div = F.kl_div(expert_outputs_flat.unsqueeze(1), expert_outputs_flat.unsqueeze(2), reduction='none').sum(-1)
             diversity_loss = -torch.mean(torch.triu(kl_div.mean(0), diagonal=1))
         
         elif method == 'cosine_abs':
@@ -294,7 +293,8 @@ class ImprovedMoE(nn.Module):
         
         # Get actual expert usage
         expert_usage = expert_weights.mean(0)
-        balance_loss = F.mse_loss(expert_usage, ideal_usage)
+        # Increase the loss a bit so it can have some more weightage
+        balance_loss = torch.mean(torch.abs(expert_usage - ideal_usage) ** 1.5)
         
         return balance_loss
 
@@ -367,10 +367,10 @@ def train_epoch(model, loader, optimizer, scheduler, n_classes, device):
         # Main classification loss
         task_loss = F.cross_entropy(outputs, targets)
         
-        total_loss_batch = (0.5 * task_loss + 
-                   0.1 * losses['balance_loss'] + 
+        total_loss_batch = (0.4 * task_loss + 
+                   0.3 * losses['balance_loss'] + 
                    0.2 * losses['diversity_loss'] + 
-                   0.2 * losses['routing_loss'])
+                   0.1 * losses['routing_loss'])
         
         total_loss_batch.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
