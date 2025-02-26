@@ -1,7 +1,8 @@
 # timm-moe
 ## using pytorch pretrained image models to create Mixture of experts.
-The purpose of this repo is to give an understanding how TIMM features can be used 
-to train a mixutre of experts for classification. 
+The purpose of this repo is to give an understanding how TIMM features
+as a backbone for feature extraction can be used to train a mixutre of 
+experts for classification. 
 
 It is a single file repo, train/testing is done on CIFAR10 dataset. 
 efficientnet_xx versions were used to perform the training and validation
